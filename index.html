@@ -1,21 +1,219 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Ejemplo C con WASM</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Demo C con WebAssembly · Proyecto Insignia</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+    }
+
+    body {
+      background: linear-gradient(145deg, #f5f7fa 0%, #e9ecf2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      padding: 1.5rem;
+      margin: 0;
+    }
+
+    .card {
+      max-width: 900px;
+      width: 100%;
+      background: rgba(255,255,255,0.8);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 2.5rem;
+      box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25), 0 0 0 1px rgba(255,255,255,0.6) inset;
+      padding: 2rem 2rem 2.5rem;
+      transition: all 0.2s ease;
+    }
+
+    h1 {
+      font-size: 2.4rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, #1e2b3a, #2c3e50);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .subtitle {
+      font-size: 1.1rem;
+      color: #4a5a6e;
+      margin-bottom: 2rem;
+      border-left: 4px solid #3b82f6;
+      padding-left: 1rem;
+      background: #f0f4fe80;
+      border-radius: 0 1rem 1rem 0;
+      line-height: 1.5;
+    }
+
+    .output-container {
+      background: #0e1a2b;
+      border-radius: 1.5rem;
+      padding: 1.5rem;
+      box-shadow: inset 0 8px 12px rgba(0,0,0,0.6), 0 2px 4px rgba(255,255,255,0.1);
+    }
+
+    pre {
+      margin: 0;
+      font-family: 'Fira Code', 'JetBrains Mono', 'Cascadia Code', monospace;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      color: #e2e8f0;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+      min-height: 200px;
+      max-height: 500px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: #3b82f6 #1e2f44;
+    }
+
+    pre::-webkit-scrollbar {
+      width: 8px;
+    }
+    pre::-webkit-scrollbar-track {
+      background: #1e2f44;
+      border-radius: 8px;
+    }
+    pre::-webkit-scrollbar-thumb {
+      background: #3b82f6;
+      border-radius: 8px;
+    }
+
+    .status {
+      margin-top: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      font-size: 0.95rem;
+      color: #2d3f57;
+      font-weight: 500;
+      background: #eef2f6;
+      padding: 0.7rem 1.5rem;
+      border-radius: 3rem;
+      width: fit-content;
+      backdrop-filter: blur(4px);
+    }
+
+    .dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #fbbf24;
+      box-shadow: 0 0 0 2px #fef3c7;
+      animation: pulse 1.8s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(1.1); }
+      100% { opacity: 1; transform: scale(1); }
+    }
+
+    .footer-note {
+      margin-top: 2rem;
+      text-align: center;
+      font-size: 0.9rem;
+      color: #4b6584;
+      border-top: 1px dashed #bdd3e8;
+      padding-top: 1.5rem;
+    }
+    .footer-note strong {
+      color: #1e3c5c;
+    }
+  </style>
 </head>
 <body>
-  <h1>Ejecutando C en el navegador 🧠</h1>
-  <pre id="output"></pre>
+  <div class="card">
+    <h1>
+      <span>🧠</span> C · WebAssembly
+    </h1>
+    <div class="subtitle">
+      Código C compilado a WASM con Emscripten · Ejecución real en el navegador
+    </div>
 
+    <!-- Área de salida (se llena con stdout del programa C) -->
+    <div class="output-container">
+      <pre id="output">⏳ Inicializando módulo WebAssembly...</pre>
+    </div>
+
+    <!-- Indicador de estado dinámico (se actualizará con JS) -->
+    <div class="status" id="status">
+      <span class="dot"></span>
+      <span id="status-text">Cargando módulo...</span>
+    </div>
+
+    <div class="footer-note">
+      <strong>Proyecto insignia</strong> · Compilación automática desde C · 
+      <span style="color: #2563eb;">by Tu Nombre</span>
+    </div>
+  </div>
+
+  <!-- Script generado por Emscripten (contiene la función Module) -->
   <script src="docs/main.js"></script>
-  <script>
-    const output = document.getElementById("output");
 
-    Module().then((instance) => {
-      instance.callMain();
-      output.textContent = "¡Código C ejecutado con éxito!";
-    });
+  <!-- Nuestro código de integración: captura salida y maneja el ciclo de vida -->
+  <script>
+    (function() {
+      const outputEl = document.getElementById('output');
+      const statusText = document.getElementById('status-text');
+
+      // Limpiar mensaje de carga inicial y preparar acumulador de salida
+      outputEl.innerText = '';  // Borra "⏳ Inicializando..." para empezar limpio
+
+      // Función para añadir texto al <pre> (tanto stdout como stderr)
+      function appendToOutput(text, isError = false) {
+        // Emscripten suele llamar con strings, a veces con saltos de línea incluidos
+        if (text === undefined || text === null) return;
+        const line = String(text);
+        // Si es error, lo marcamos en rojo dentro del pre
+        if (isError) {
+          outputEl.innerHTML += `<span style="color:#f87171;">[error] ${line}</span>\n`;
+        } else {
+          outputEl.innerText += line + '\n';
+        }
+        // Auto-scroll al final
+        outputEl.scrollTop = outputEl.scrollHeight;
+      }
+
+      // Configuración del módulo WASM (pasamos print y printErr personalizados)
+      // Asumimos que Module es una función que acepta un objeto de configuración
+      // y retorna una Promise (estilo MODULARIZE de Emscripten).
+      const moduleConfig = {
+        print: (text) => appendToOutput(text, false),
+        printErr: (text) => appendToOutput(text, true),
+        // Opcional: puedes añadir más callbacks como preRun, postRun, etc.
+      };
+
+      // Actualizar estado
+      statusText.innerText = 'Compilando e instanciando WASM...';
+
+      // Llamar a Module (definido en main.js) con nuestra configuración
+      Module(moduleConfig)
+        .then((instance) => {
+          statusText.innerText = 'Ejecutando programa C...';
+          // Llamar a la función principal (por defecto 'main' si se compiló como programa)
+          instance.callMain();  // Si tu programa necesita argumentos, pásalos como array
+          statusText.innerText = 'Ejecución finalizada correctamente ✅';
+        })
+        .catch((err) => {
+          console.error(err);
+          appendToOutput(`Error fatal: ${err.message || err}`, true);
+          statusText.innerText = 'Error durante la ejecución ❌';
+        });
+    })();
   </script>
 </body>
 </html>
